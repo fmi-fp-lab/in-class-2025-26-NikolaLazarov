@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 -- cover all cases!
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 -- warn about incomplete patterns v2
@@ -10,77 +11,13 @@
 -- use all your pattern matches!
 {-# OPTIONS_GHC -fwarn-unused-matches #-}
 
+{-# HLINT ignore "Eta reduce" #-}
+
 module HOF where
 
-import Prelude hiding (const, curry, id, log, map, on, swap, uncurry, until, ($), (.))
-import Control.Monad (join, liftM2, ap)
+import Control.Monad (ap, join, liftM2)
 import Control.Monad.Fix (fix)
-
--- TODO:
--- - remind about github classrooms -> in-class && HW00
--- - soon HW01?
---
--- TODO: talk (again) about
--- - sections (why (+) makes sense)
-
--- (define (1+ n) (+ 1 n))
--- onePlus :: Int -> Int
--- onePlus n = 1 + n
--- >>> (+) 1 2
--- 3
--- f :: Integer -> Integer -> Integer
--- f a b = a + 2 * b
-
--- >>> (5 `elem`) []
--- False
-
--- >>> (1 `f`) 2
--- 5
-
--- - guards
-
-data EziTura = Ezi | Tura
-  deriving (Eq)
-
-neshto :: EziTura -> Integer
-neshto Ezi = 5
-neshto Tura = 6
-
--- switch x { case Ezi: return 5; break; case Tura.... }
-
-
--- - lambdas, desugar function definition,
-
--- f(x) { return x + 1 }
--- ff :: Integer -> Bool -> Integer
--- ff x y = x + 1
-
--- sbor a b = \c -> a + b + c
---
--- sborSEdnoIPet = sbor 1 5
-
--- >>> sborSEdnoIPet 1
--- 7
-
---   HOF(arguments), tuple-map hof example, currying, polymorphism
---
--- TODO: talk about (show some usages in last week's `../01/Solutions.hs`)
--- - , in type declarations
--- - @-bindings
--- - let
--- - where
--- - ($), (.)
--- - what does "combinator" mean?
---
--- TODO: implement
--- - applyTwice :: (a -> a) -> a -> a
--- - id
--- - ($) (maybe go back to solutions and start rewriting stuff using ($))
--- - infixr 0 $ (draw AST of an operator-heavy expression)
--- - (.)
-
-plusTwo :: Integer -> Integer
-plusTwo = applyTwice (+1)
+import Prelude hiding (const, curry, id, log, map, on, swap, uncurry, until, ($), (.))
 
 -- >>> applyTwice (+1) 5
 -- 7
@@ -95,27 +32,12 @@ id x = x
 f $ a = f a
 infixr 0 $
 
--- x = (+1) $ 1 + 2
-
---  >>> :i (+)
--- type Num :: * -> Constraint
--- class Num a where
---   (+) :: a -> a -> a
---   ...
---   	-- Defined in ‘GHC.Internal.Num’
--- infixl 6 +
-
--- f (g (h (x + 1)))
--- f $ g $ h $ x + 1
-
--- TODO: implement
 data Tuple a b = MkTuple a b
   deriving (Show)
 
 sumTuple :: Tuple Int Int -> Int
 sumTuple (MkTuple a b) = a + b
 
--- TODO: implement both, show C++ equivalent
 fstTuple :: Tuple a b -> a
 fstTuple (MkTuple a _) = a
 
@@ -134,7 +56,7 @@ sndTuple (MkTuple _ b) = b
 -- 42
 
 const :: a -> b -> a
-const = undefined
+const x _ = x
 
 -- TASK:
 -- Compose two functions, very useful very often
@@ -148,25 +70,6 @@ const = undefined
 compose :: (b -> c) -> (a -> b) -> a -> c
 compose f g x = f (g x)
 
--- Wild UTF8 non-operator names
-猫 :: Integer
-猫 = 5
-
--- Play around with the syntax (how many parenthesis can you stuff in here?)
-(.) :: (b -> c) -> (a -> b) -> a -> c
-(.) = compose
-
--- Wild UTF8 operator names
-(∘) :: (b -> c) -> (a -> b) -> a -> c
-(∘) = (.)
-
--- Correct only for 1/4th, kek
-(√) :: Integer -> Integer
-(√) x = x * 2
-
--- >>> ((*2) ∘ (+1)) 3
--- 8
-
 -- TASK:
 -- Iterate a function f n times over a base value x.
 
@@ -176,7 +79,9 @@ compose f g x = f (g x)
 -- 1024
 
 iterateN :: (a -> a) -> a -> Integer -> a
-iterateN = undefined
+iterateN f x n
+  | n <= 0 = x
+  | otherwise = iterateN f (f x) (n - 1)
 
 -- TASK:
 -- Swap the two elements of a tuple
@@ -185,7 +90,7 @@ iterateN = undefined
 -- MkTuple 69 42
 
 swap :: Tuple a b -> Tuple b a
-swap = undefined
+swap (MkTuple a b) = MkTuple b a
 
 -- TASK:
 -- Apply a function to only the first component of a tuple
@@ -194,7 +99,7 @@ swap = undefined
 -- MkTuple 42 1337
 
 first :: (a -> b) -> Tuple a c -> Tuple b c
-first = undefined
+first f (MkTuple a c) = MkTuple (f a) c
 
 -- TASK:
 -- Convert a function operating on a tuple, to one that takes two arguments.
@@ -205,7 +110,7 @@ first = undefined
 -- 69
 
 curry :: (Tuple a b -> c) -> a -> b -> c
-curry = undefined
+curry h a b = h (MkTuple a b)
 
 -- TASK:
 -- Convert a two argument function, to one that takes a Tuple.
@@ -214,7 +119,7 @@ curry = undefined
 -- 69
 
 uncurry :: (a -> b -> c) -> Tuple a b -> c
-uncurry = undefined
+uncurry f (MkTuple a b) = f a b
 
 -- TASK:
 -- > p `on` f
@@ -226,7 +131,7 @@ uncurry = undefined
 -- 59
 
 on :: (b -> b -> c) -> (a -> b) -> a -> a -> c
-on = join . ((flip . ((.) .)) .) . (.)
+on p f x y = p (f x) (f y)
 
 -- TASK:
 -- Execute a function, until the result starts sastifying a given predicate
@@ -235,8 +140,7 @@ on = join . ((flip . ((.) .)) .) . (.)
 -- 1372
 
 until :: (a -> Bool) -> (a -> a) -> a -> a
--- until p f x = if p x then x else until p f (f x)
-until = fix (ap ((.) . ap . (if' =<<)) . flip flip id . (liftM2 (.) .))
+until p f x = if p x then x else until p f (f x)
 
 if' :: Bool -> a -> a -> a
 if' p x y = if p then x else y
@@ -245,8 +149,8 @@ if' p x y = if p then x else y
 -- Apply two different functions to the two different arguments of a tuple
 -- Think about what the type should be.
 
--- mapTuple :: ???
--- mapTuple = undefined
+mapTuple :: (a -> b) -> (c -> d) -> Tuple a c -> Tuple b d
+mapTuple f g (MkTuple a c) = MkTuple (f a) (g c)
 
 data Nat
   = Zero
@@ -269,20 +173,30 @@ data Nat
 -- Can you implement a general enough higher-order function (called `foldNat` here), such that you can then use to
 -- implement both of `addNat` and `multNat` by passing suitable arguments? What are those arguments?
 --
--- foldNat :: ???
--- foldNat = ???
+foldNat :: r -> (r -> r) -> Nat -> r
+foldNat z _ Zero = z
+foldNat z s (Succ n) = s (foldNat z s n)
 
 -- TASK:
 -- If your function is "good enough" you should also be able to implement exponentiation using it.
 
--- expNat :: Nat -> Nat -> Nat
--- expNat = undefined
+-- Examples using foldNat
+addNat :: Nat -> Nat -> Nat
+addNat n m = foldNat m Succ n
+
+multNat :: Nat -> Nat -> Nat
+multNat n m = foldNat Zero (addNat m) n
+
+expNat :: Nat -> Nat -> Nat
+expNat n m = foldNat one (multNat n) m
+ where
+  one = Succ Zero
 
 -- TASK:
 -- Can you also implement the following function using your foldNat? If not, (try to) modify your function so you can.
 
--- natToInteger :: Nat -> Integer
--- natToInteger = undefined
+natToInteger :: Nat -> Integer
+natToInteger = foldNat 0 (+ 1)
 
 -- TASK:
 -- Can you also implement the following "predecessor" function using it? Yes/No, and why?
@@ -291,5 +205,9 @@ data Nat
 -- predNat Zero = Zero
 -- predNat (Succ n) = n
 
--- predNat :: Nat -> Nat
--- predNat = undefined
+foldNat' :: r -> (Nat -> r -> r) -> Nat -> r
+foldNat' z _ Zero = z
+foldNat' z s (Succ n) = s n (foldNat' z s n)
+
+predNat :: Nat -> Nat
+predNat = foldNat' Zero const
