@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 -- cover all cases!
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 -- warn about incomplete patterns v2
@@ -8,52 +9,19 @@
 {-# OPTIONS_GHC -fwarn-name-shadowing #-}
 -- use all your pattern matches!
 {-# OPTIONS_GHC -fwarn-unused-matches #-}
+-- We knowingly use partial Prelude helpers (e.g. tail) for brevity in lists-over-streams examples
+{-# OPTIONS_GHC -Wno-x-partial #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Use lambda-case" #-}
 {-# HLINT ignore "Redundant lambda" #-}
 {-# HLINT ignore "Use map" #-}
-{-# HLINT ignore "Eta reduce" #-}
 
 module Lazy where
 
 import Prelude hiding (cycle, foldl, foldl', foldr, repeat, scanl)
 
--- TODO:
--- (boolean blindness)
--- https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/
--- (a → Maybe b) VS (a → Bool, a ⇀/↛/↪ b) -- (funny symbol for partial function)
--- thunks -- delayed computation, replaced when done; memoization incarnate
--- :print, :sprint
--- (don't forget type annos; sometimes unreliable, different results between ghc versions)
--- (maybe try `:set -XMonomorphismRestriction` for some (polymorphic) examples)
--- when do we "need" to evalute something? case matches!
--- pattern-matching desuraging (Nat, isZero, tuples)
--- how much do we need to evaluate it?
--- WHNF (the least that we need to do to continue forward)
--- infinite structures (again)
--- Stream, but we will use [] with asserts*
--- error "banica"
--- show take def?
--- Debug.Trace
-
 data Stream a = Cons a (Stream a)
-
--- foldr, foldl, stack space
---
--- {seq :: a -> b -> b}
--- {seq a b} - "evaluate a and b together" - no enforced order, but usually used to mean a before b
---  {seq a b} terminates iff a terminates ("terminates" meaning that it evaluates to something)
---
--- very detailed SO answer describing seq in more detail:
--- https://stackoverflow.com/a/66965677
---
--- Quoting: <<EOQ
--- A note on evaluation order: the expression {seq a b} does not guarantee that {a} will be evaluated before {b}.
--- The only guarantee given by {seq} is that the both {a} and {b} will be evaluated before seq returns a value.
--- In particular, this means that {b} *may* be evaluated before {a}.
--- It also means that if you entirely ignore the result of {seq a b}, neither {a} nor {b} will be evaluated,
--- for example in {const 5 (seq undefined undefined)}.
--- EOQ
 
 foldl :: (b -> a -> b) -> b -> [a] -> b
 foldl _ acc [] = acc
@@ -70,45 +38,20 @@ foldr f nv (x : xs) = x `f` foldr f nv xs
 length' :: [a] -> Integer
 length' = foldl (\acc _ -> acc + 1) 0
 
--- >>> length' [1,2,3]
--- 3
-
--- length (1 : 2 : 3 : [])
--- foldl' (\acc _ -> acc + 1) 0 (1 : 2 : 3 : [])
--- foldl' (\acc _ -> acc + 1) 0 (1 : 2 : 3 : [])
--- foldl' _ ((\acc _ -> acc + 1) 0 1) (2 : 3 : [])
--- foldl' _ (0 + 1) (2 : 3 : [])
--- foldl' _ (1 + 1) (3 : [])
--- foldl' _ (2 + 1) ([])
--- 3
-
 reverseAndMap' :: (a -> b) -> [a] -> [b]
 reverseAndMap' f = foldr (\x ys -> f x : ys) []
 
--- map' (1+) [1,2,3]
--- foldl (\ys x -> f x : ys) [] [1,2,3]
--- foldl (\ys x -> f x : ys) ((1+) 1 : []) [2,3]
--- foldl (\ys x -> f x : ys) ((1+) 2 : ((1+) 1 : [])) [3]
--- foldl (\ys x -> f x : ys) ((1+) 3 : ((1+) 2 : ((1+) 1 : []))) []
--- ((1+) 3 : ((1+) 2 : ((1+) 1 : [])))
-
--- foldr (:) [] [1,2,3]
--- foldr [] (\ys x -> f x : ys) [1,2,3]
--- 1 : foldr [] (\ys x -> f x : ys)  [2,3]
--- 1 : 2 : foldr [] (\ys x -> f x : ys) ((1+) 2 : ((1+) 1 : [])) [3]
--- 1 : 2 : 3 : foldr [] (\ys x -> f x : ys) ((1+) 3 : ((1+) 2 : ((1+) 1 : []))) []
--- 1 : 2 : 3 : []
-
--- TODO:
--- seq the acc
--- bang the acc
-
 -- TASK:
 -- Infinitely repeat a value
+
 -- >>> take 4 $ repeat 'a'
 -- "aaaa"
+
+
 repeat :: a -> [a]
-repeat = undefined
+repeat x = xs
+  where
+    xs = x : xs
 
 -- TASK:
 -- A list of all the natural numbers.
@@ -116,8 +59,9 @@ repeat = undefined
 -- >>> take 10 nats
 -- [0,1,2,3,4,5,6,7,8,9]
 
+
 nats :: [Integer]
-nats = undefined
+nats = [0 ..]
 
 -- TASK:
 -- Generate an infinite list of numbers, starting with the given number, with the given interval between each numbe.
@@ -131,8 +75,9 @@ nats = undefined
 -- >>> take 10 $ fromThen 0 (-10)
 -- [0,-10,-20,-30,-40,-50,-60,-70,-80,-90]
 
+
 fromThen :: Integer -> Integer -> [Integer]
-fromThen = undefined
+fromThen start step = start : fromThen (start + step) step
 
 -- TASK:
 -- Implement a list of all the factorial numbers
@@ -142,10 +87,11 @@ fromThen = undefined
 -- >>> take 10 facts
 -- [1,1,2,6,24,120,720,5040,40320,362880]
 
+
 facts :: [Integer]
-facts = undefined
+facts = go 1 0
   where
-    go = undefined
+    go acc n = acc : go (acc * (n + 1)) (n + 1)
 
 -- TASK:
 -- "Caching foldl"
@@ -156,8 +102,10 @@ facts = undefined
 -- >>> scanl (+) 0 [1..10]
 -- [0,1,3,6,10,15,21,28,36,45,55]
 
+
 scanl :: (b -> a -> b) -> b -> [a] -> [b]
-scanl = undefined
+scanl _ acc [] = [acc]
+scanl f acc (x : xs) = acc : scanl f (f acc x) xs
 
 -- TASK:
 -- Use scanl to implement facts.
@@ -165,8 +113,9 @@ scanl = undefined
 -- >>> take 10 factsScanl
 -- [1,1,2,6,24,120,720,5040,40320,362880,3628800]
 
+
 factsScanl :: [Integer]
-factsScanl = undefined
+factsScanl = scanl (*) 1 [1 ..]
 
 -- TASK:
 -- Implement a list of all the fibonacci numbers.
@@ -180,8 +129,9 @@ factsScanl = undefined
 -- >>> take 10 fibs
 -- [0,1,1,2,3,5,8,13,21,34]
 
+
 fibs :: [Integer]
-fibs = undefined
+fibs = 0 : 1 : zipWith (+) fibs (tail fibs)
 
 -- TASK:
 -- Idea:
@@ -198,18 +148,24 @@ fibs = undefined
 -- >>> take 20 $ primes
 -- [2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71]
 
+
 primes :: [Integer]
-primes = undefined
+primes = eratosthenes [2 ..]
   where
     eratosthenes :: [Integer] -> [Integer]
-    eratosthenes = undefined
+    eratosthenes [] = []
+    eratosthenes (p : xs) = p : eratosthenes (filter (\x -> x `mod` p /= 0) xs)
 
 -- TASK:
 -- Infinitely repeat a list
+
 -- >>> take 7 $ cycle [1,2,3]
 -- [1,2,3,1,2,3,1]
+
+
 cycle :: [a] -> [a]
-cycle = undefined
+cycle [] = error "cycle: empty list"
+cycle xs = xs ++ cycle xs
 
 -- TASK:
 -- Let's consider the following problem:
@@ -244,15 +200,33 @@ cycle = undefined
 -- >>> map (\(x,y) -> (x, y, jos x y)) [(x, y) | x <- [2..5], y <- [2..5]]
 -- [(2,2,2),(2,3,1),(2,4,2),(2,5,1),(3,2,2),(3,3,2),(3,4,1),(3,5,1),(4,2,1),(4,3,2),(4,4,2),(4,5,3),(5,2,4),(5,3,1),(5,4,2),(5,5,4)]
 
+
 jos :: Integer -> Int -> Integer
-jos = undefined
+jos n k
+  | n <= 0 = error "jos: n must be positive"
+  | otherwise = untilJust oneLeft go [1 .. n]
   where
     -- figure out what this function should do based only on the types and the name
     -- I think there's only one valid type safe implementation of this
     -- ask me if you're confused
     -- this function exists in base but with Bool instead of Maybe
     untilJust :: (a -> Maybe b) -> (a -> a) -> a -> b
-    untilJust = undefined
+    untilJust p step x =
+      case p x of
+        Just y -> y
+        Nothing -> untilJust p step (step x)
+
+    oneLeft :: [Integer] -> Maybe Integer
+    oneLeft [x] = Just x
+    oneLeft _ = Nothing
+
     -- the procedure which actually does the removal
     go :: [Integer] -> [Integer]
-    go = undefined
+    go [] = []
+    go xs =
+      let len = length xs
+          idx = k `mod` len
+          (pre, rest) = splitAt idx xs
+       in case rest of
+            [] -> pre -- shouldn't happen because idx < len
+            (_ : post) -> post ++ pre
